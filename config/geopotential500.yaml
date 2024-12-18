@@ -1,0 +1,24 @@
+dataset_parameter:
+  data_path: "./data/geopotential500"
+  im_channel: 1
+  im_size: [128, 64]
+  name: "geopotential500"
+
+autoencoder_parameter:
+  latent_dim: 4
+  down_channels: [32, 64, 128, 128]
+  mid_channels: [128, 128]
+  norm_channels: 32
+  num_attention_heads: 4
+  num_down_layers: 2
+  num_mid_layers: 2
+  num_up_layers: 2
+
+training_parameter:
+  tast_name: "geopotential500_vae"
+  autoencoder_batch_size: 64
+  autoencoder_learning_rate: 0.0001
+  autoencoder_epochs: 20
+  discriminator_start: 1000
+  discriminator_weight: 0.5
+  kl_weight: 0.000005
