@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import lightning.pytorch as pl
-import numpy as np
 import torch.nn.functional as F
 import torchvision
 

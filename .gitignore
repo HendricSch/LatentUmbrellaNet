@@ -298,3 +298,4 @@ $RECYCLE.BIN/
 /lightning_logs/
 /logs/
 *.memmap
+*.zarr
