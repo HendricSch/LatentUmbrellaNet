@@ -13,8 +13,8 @@ class VAEDataset(torch.utils.data.Dataset):
         self.channels = channels
         self.img_res = img_res
 
-        self.mean: np.ndarray = np.array([5.40695777e+04, 2.74162604e+02, 2.41138667e-03, 2.77659178e+02, 6.11351155e+00])
-        self.std: np.ndarray = np.array([3.28407787e+03, 1.60311676e+01, 2.39652644e-03, 2.20706169e+01, 3.32614560e+00])
+        self.mean: np.ndarray = np.array([5.40695777e+04, 2.74162604e+02, 2.41138667e-03, 2.77659178e+02, 6.11351155e+00], dtype=np.float32)
+        self.std: np.ndarray = np.array([3.28407787e+03, 1.60311676e+01, 2.39652644e-03, 2.20706169e+01, 3.32614560e+00], dtype=np.float32)
 
         self.data = self._load_data()
         self.data = self._normalize()

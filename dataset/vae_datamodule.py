@@ -62,6 +62,7 @@ class VAEDataModule(pl.LightningDataModule):
             shuffle=True,
             pin_memory=True,
             prefetch_factor=self.prefetch_factor,
+            persistent_workers=True,
         )
 
     def val_dataloader(self) -> torch.utils.data.DataLoader:
@@ -71,6 +72,7 @@ class VAEDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=True,
             prefetch_factor=self.prefetch_factor,
+            persistent_workers=True,
         )
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:

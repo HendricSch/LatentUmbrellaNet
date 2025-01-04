@@ -14,24 +14,24 @@ class VQVAE(pl.LightningModule):
 
         # Hyperparameters Lightining
         self.lr = 0.00001
-        self.example_input_array = torch.rand(1, 1, 128, 64)
+        self.example_input_array = torch.rand(1, 5, 128, 64)
         self.automatic_optimization = False
 
         self.step_count = 0
 
         # Hyperparameters VQVAE
-        self.down_channels = [64, 128, 256, 256]
-        self.mid_channels = [256, 256]
+        self.down_channels = [32, 64, 128, 128]
+        self.mid_channels = [128, 128]
         self.up_channels = list(reversed(self.down_channels))
         self.in_channels = in_channels
         self.norm_groups = 32
-        self.latent_dim = 3
+        self.latent_dim = 5
         self.codebook_size = 8192
         self.codebook_weight = 1.0
         self.commitment_weight = 0.2
 
         # Discriminator
-        self.discriminator = Discriminator(in_channels=1)
+        self.discriminator = Discriminator(in_channels=self.in_channels)
         self.discriminator_start_step = 2000
         self.disc_weight = 0.5
 
@@ -289,10 +289,22 @@ class VQVAE(pl.LightningModule):
 
         # log an image of the reconstruction every 100 steps to tensorboard
         if batch_idx % 100 == 0:
+            sample_plot = sample[0:3, 0, :, :].unsqueeze(1)
+            prediction_plot = prediction[0:3, 0, :, :].unsqueeze(1)
             self.logger.experiment.add_image(
-                "reconstruction",
+                "c500",
                 torchvision.utils.make_grid(
-                    torch.cat([sample[0:3], prediction[0:3]], dim=0)
+                    torch.cat([sample_plot, prediction_plot], dim=0)
+                ),
+                self.current_epoch,
+            )
+
+            sample_plot = sample[0:3, 3, :, :].unsqueeze(1)
+            prediction_plot = prediction[0:3, 3, :, :].unsqueeze(1)
+            self.logger.experiment.add_image(
+                "t2m",
+                torchvision.utils.make_grid(
+                    torch.cat([sample_plot, prediction_plot], dim=0)
                 ),
                 self.current_epoch,
             )
