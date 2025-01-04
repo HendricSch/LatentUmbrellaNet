@@ -9,7 +9,7 @@ from models.discriminator import Discriminator
 
 
 class VQVAE(pl.LightningModule):
-    def __init__(self):
+    def __init__(self, in_channels: int) -> None:
         super(VQVAE, self).__init__()
 
         # Hyperparameters Lightining
@@ -23,7 +23,7 @@ class VQVAE(pl.LightningModule):
         self.down_channels = [64, 128, 256, 256]
         self.mid_channels = [256, 256]
         self.up_channels = list(reversed(self.down_channels))
-        self.in_channels = 1
+        self.in_channels = in_channels
         self.norm_groups = 32
         self.latent_dim = 3
         self.codebook_size = 8192

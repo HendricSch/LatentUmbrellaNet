@@ -6,7 +6,9 @@ from dataset.geopotential_vae import GeopotentialDataModuleVAE
 
 
 def main():
-    model = VQVAE()
+    model = VQVAE(
+        in_channels=1
+    )
     dm = GeopotentialDataModuleVAE(batch_size=4)
 
     tb_logger = pl_loggers.TensorBoardLogger(save_dir="logs/", name="vqvae")
