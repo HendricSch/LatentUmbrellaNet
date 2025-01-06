@@ -34,7 +34,8 @@ class Discriminator(nn.Module):
                     nn.BatchNorm2d(self.dims[i + 1])
                     if i != len(self.dims) - 2 and i != 0
                     else nn.Identity(),
-                    self.activation if i != len(self.dims) - 2 else nn.Identity(),
+                    self.activation if i != len(
+                        self.dims) - 2 else nn.Identity(),
                 )
                 for i in range(len(self.dims) - 1)
             ]
@@ -47,6 +48,59 @@ class Discriminator(nn.Module):
             out = layer(out)
 
         return out
+
+
+class PatchGanDiscriminator(nn.Module):
+
+    def __init__(self, in_channels: int):
+        super(PatchGanDiscriminator, self).__init__()
+
+        self.c64 = nn.Sequential(
+            nn.Conv2d(in_channels, 64, kernel_size=(
+                4, 4), stride=(2, 2), padding=1),
+            nn.LeakyReLU(0.2)
+        )
+
+        self.c128 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(4, 4), stride=(2, 2), padding=1),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2)
+        )
+
+        # self.c256 = nn.Sequential(
+        #     nn.Conv2d(128, 256, kernel_size=(4, 4), stride=(2, 2), padding=1),
+        #     nn.BatchNorm2d(256),
+        #     nn.LeakyReLU(0.2)
+        # )
+
+        # self.c512 = nn.Sequential(
+        #     nn.Conv2d(256, 512, kernel_size=(4, 4), stride=(2, 2), padding=1),
+        #     nn.BatchNorm2d(512),
+        #     nn.LeakyReLU(0.2)
+        # )
+
+        self.second_last = nn.Sequential(
+            nn.Conv2d(128, 128, kernel_size=(4, 4),
+                      stride=(1, 1), padding="same"),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.2)
+        )
+
+        self.output = nn.Sequential(
+            nn.Conv2d(128, 1, kernel_size=(4, 4),
+                      stride=(1, 1), padding="same"),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.c64(x)
+        x = self.c128(x)
+        # x = self.c256(x)
+        # x = self.c512(x)
+        x = self.second_last(x)
+        x = self.output(x)
+
+        return x
 
 
 def main():

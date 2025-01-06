@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torchvision
 
 from models.blocks import DownBlock, MidBlock, UpBlock
-from models.discriminator import Discriminator
+from models.discriminator import Discriminator, PatchGanDiscriminator
 
 
 class VQVAE(pl.LightningModule):
@@ -13,7 +13,7 @@ class VQVAE(pl.LightningModule):
         super(VQVAE, self).__init__()
 
         # Hyperparameters Lightining
-        self.lr = 0.00001
+        self.lr = 3e-4
         self.example_input_array = torch.rand(1, 5, 128, 64)
         self.automatic_optimization = False
 
@@ -25,15 +25,16 @@ class VQVAE(pl.LightningModule):
         self.up_channels = list(reversed(self.down_channels))
         self.in_channels = in_channels
         self.norm_groups = 32
-        self.latent_dim = 5
-        self.codebook_size = 8192
+        self.latent_dim = 8
+        self.codebook_size = 1024
         self.codebook_weight = 1.0
         self.commitment_weight = 0.2
 
         # Discriminator
-        self.discriminator = Discriminator(in_channels=self.in_channels)
-        self.discriminator_start_step = 2000
-        self.disc_weight = 0.5
+        self.discriminator = PatchGanDiscriminator(
+            in_channels=self.in_channels)
+        self.discriminator_start_step = 500
+        self.disc_weight = 0.01
 
         ### Encoder ###
         self.encoder_conv_in = nn.Conv2d(
@@ -64,13 +65,15 @@ class VQVAE(pl.LightningModule):
             ]
         )
 
-        self.encoder_norm_out = nn.GroupNorm(self.norm_groups, self.down_channels[-1])
+        self.encoder_norm_out = nn.GroupNorm(
+            self.norm_groups, self.down_channels[-1])
 
         self.encoder_conv_out = nn.Conv2d(
             self.down_channels[-1], self.latent_dim, kernel_size=3, padding=1
         )
 
-        self.pre_quant_conv = nn.Conv2d(self.latent_dim, self.latent_dim, kernel_size=1)
+        self.pre_quant_conv = nn.Conv2d(
+            self.latent_dim, self.latent_dim, kernel_size=1)
 
         self.embedding = nn.Embedding(self.codebook_size, self.latent_dim)
 
@@ -109,7 +112,8 @@ class VQVAE(pl.LightningModule):
             ]
         )
 
-        self.decoder_norm_out = nn.GroupNorm(self.norm_groups, self.up_channels[-1])
+        self.decoder_norm_out = nn.GroupNorm(
+            self.norm_groups, self.up_channels[-1])
 
         self.decoder_conv_out = nn.Conv2d(
             self.up_channels[-1], self.in_channels, kernel_size=3, padding=1
@@ -126,7 +130,8 @@ class VQVAE(pl.LightningModule):
 
         # Find nearest embedding/codebook vector
         # dist between (B, H*W, C) and (B, K, C) -> (B, H*W, K)
-        dist = torch.cdist(x, self.embedding.weight[None, :].repeat((x.size(0), 1, 1)))
+        dist = torch.cdist(
+            x, self.embedding.weight[None, :].repeat((x.size(0), 1, 1)))
         # (B, H*W)
         min_encoding_indices = torch.argmin(dist, dim=-1)
 
@@ -214,7 +219,8 @@ class VQVAE(pl.LightningModule):
 
     def calc_losses_generator(self, sample, prediction) -> dict:
         # Reconstruction loss
-        recon_loss = F.mse_loss(prediction, sample)
+        # recon_loss = F.mse_loss(prediction, sample)
+        recon_loss = F.l1_loss(prediction, sample)
 
         # Adversarial loss
         disc_fake_pred = self.discriminator(prediction)
@@ -241,7 +247,8 @@ class VQVAE(pl.LightningModule):
         loss_generator_dict = self.calc_losses_generator(sample, prediction)
         loss_generator_recon = loss_generator_dict["recon_loss"]
         loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * self.codebook_weight
+        loss_generator_codebook = quant_losses["codebook_loss"] * \
+            self.codebook_weight
         loss_generator_commitment = (
             quant_losses["commitment_loss"] * self.commitment_weight
         )
@@ -317,7 +324,8 @@ class VQVAE(pl.LightningModule):
         loss_generator_dict = self.calc_losses_generator(sample, prediction)
         loss_generator_recon = loss_generator_dict["recon_loss"]
         loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * self.codebook_weight
+        loss_generator_codebook = quant_losses["codebook_loss"] * \
+            self.codebook_weight
         loss_generator_commitment = (
             quant_losses["commitment_loss"] * self.commitment_weight
         )
@@ -358,7 +366,8 @@ class VQVAE(pl.LightningModule):
         loss_generator_dict = self.calc_losses_generator(sample, prediction)
         loss_generator_recon = loss_generator_dict["recon_loss"]
         loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * self.codebook_weight
+        loss_generator_codebook = quant_losses["codebook_loss"] * \
+            self.codebook_weight
         loss_generator_commitment = (
             quant_losses["commitment_loss"] * self.commitment_weight
         )
@@ -392,6 +401,7 @@ class VQVAE(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer_d = torch.optim.Adam(self.discriminator.parameters(), lr=self.lr)
+        optimizer_d = torch.optim.Adam(
+            self.discriminator.parameters(), lr=self.lr)
         optimizer_g = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer_g, optimizer_d
