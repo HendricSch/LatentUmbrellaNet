@@ -1,35 +1,36 @@
 import torch
 import torch.nn as nn
 
+
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int) -> None:
         super().__init__()
         self.conv1 = nn.Conv2d(
-            in_channels=in_channels, 
-            out_channels=out_channels, 
-            kernel_size=(3, 3), 
-            padding='same', 
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=(3, 3),
+            padding='same',
             bias=False
         )
         self.bn1 = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
         self.conv2 = nn.Conv2d(
-            in_channels=out_channels, 
-            out_channels=out_channels, 
-            kernel_size=(3, 3), 
-            padding='same', 
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=(3, 3),
+            padding='same',
             bias=False
         )
         self.bn2 = nn.BatchNorm2d(out_channels)
-        
+
         self.downsample = None
         if in_channels != out_channels:
             self.downsample = nn.Sequential(
                 nn.Conv2d(
-                    in_channels, 
-                    out_channels, 
-                    kernel_size=(3, 3), 
-                    padding='same', 
+                    in_channels,
+                    out_channels,
+                    kernel_size=(3, 3),
+                    padding='same',
                     bias=False
                 ),
                 nn.BatchNorm2d(out_channels)
@@ -37,7 +38,7 @@ class ResidualBlock(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = self.downsample(x) if self.downsample else x
-        
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -46,14 +47,15 @@ class ResidualBlock(nn.Module):
         x = self.relu(x + identity)
 
         return x
-    
+
+
 class ResNet(nn.Module):
     def __init__(self, in_channels: int):
         super(ResNet, self).__init__()
 
         self.init_layer = nn.Sequential(
             nn.Conv2d(
-                in_channels=in_channels, 
+                in_channels=in_channels,
                 out_channels=16,
                 kernel_size=(3, 3),
                 padding='same',
