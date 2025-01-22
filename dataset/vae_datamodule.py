@@ -6,8 +6,9 @@ from typing import Optional, Union
 
 from dataset.vae_dataset import VAEDataset
 
+
 class VAEDataModule(pl.LightningDataModule):
-    def __init__(self,train_path: str, val_path: str, test_path: str, img_channel: int, img_res: tuple[int, int], batch_size: int, num_workers: int) -> None:
+    def __init__(self, train_path: str, val_path: str, test_path: str, img_channel: int, img_res: tuple[int, int], batch_size: int, num_workers: int) -> None:
         super().__init__()
 
         self.train_path: str = train_path
@@ -16,14 +17,16 @@ class VAEDataModule(pl.LightningDataModule):
 
         self.img_channel: int = img_channel
         self.img_res: tuple[int, int] = img_res
-        
+
         self.batch_size: int = batch_size
         self.num_workers: int = num_workers
 
         if self.num_workers <= 0:
             self.prefetch_factor = None
+            self.persistent_workers = False
         else:
             self.prefetch_factor = 2
+            self.persistent_workers = True
 
         self.train_ds: Optional[VAEDataset] = None
         self.val_ds: Optional[VAEDataset] = None
@@ -62,7 +65,7 @@ class VAEDataModule(pl.LightningDataModule):
             shuffle=True,
             pin_memory=True,
             prefetch_factor=self.prefetch_factor,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
         )
 
     def val_dataloader(self) -> torch.utils.data.DataLoader:
@@ -72,7 +75,7 @@ class VAEDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=True,
             prefetch_factor=self.prefetch_factor,
-            persistent_workers=True,
+            persistent_workers=self.persistent_workers,
         )
 
     def test_dataloader(self) -> torch.utils.data.DataLoader:

@@ -23,7 +23,7 @@ class ForecastDataset(torch.utils.data.Dataset):
             [3.28407787e+03, 1.60311676e+01, 2.39652644e-03, 2.20706169e+01, 3.32614560e+00], dtype=np.float32)
 
         self.data = self._load_data()
-        self.data = self._normalize()
+        # self.data = self._normalize()
 
     def _load_data(self):
         path = self.path
@@ -44,6 +44,9 @@ class ForecastDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         x1 = self.data[idx]
         x2 = self.data[idx + 1]
+
+        x1 = (x1 - self.mean[:, None, None]) / self.std[:, None, None]
+        x2 = (x2 - self.mean[:, None, None]) / self.std[:, None, None]
 
         x1 = torch.tensor(x1).to(self.device)
         x2 = torch.tensor(x2).to(self.device)

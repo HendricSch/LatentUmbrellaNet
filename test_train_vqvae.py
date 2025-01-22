@@ -6,13 +6,12 @@ from models.vqvae import VQVAE
 from dataset.vae_datamodule import VAEDataModule
 
 
-def main():
+def train():
 
     torch.set_float32_matmul_precision("medium")
 
     model = VQVAE(in_channels=5)
-    # model = VQVAE.load_from_checkpoint(
-    #    "logs/vqvae_5channel/version_31/checkpoints/epoch=28-step=11499.ckpt", in_channels=5)
+    # model = VQVAE.load_from_checkpoint("logs/vqvae_5channel_full_ds_64_128_256_512_c1024/version_0/checkpoints/epoch=5-step=27111.ckpt", in_channels=5)
 
     dm = VAEDataModule(
         train_path="train.memmap",
@@ -21,11 +20,11 @@ def main():
         img_channel=5,
         img_res=(128, 64),
         batch_size=64,
-        num_workers=1,
+        num_workers=0,
     )
 
     tb_logger = pl_loggers.TensorBoardLogger(
-        save_dir="logs/", name="vqvae_5channel")
+        save_dir="logs/", name="vqvae_5channel_test")
 
     trainer = pl.Trainer(
         logger=tb_logger,
@@ -36,4 +35,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    train()

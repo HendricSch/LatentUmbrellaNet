@@ -299,3 +299,5 @@ $RECYCLE.BIN/
 /logs/
 *.memmap
 *.zarr
+*.npy
+*.npz
