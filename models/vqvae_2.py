@@ -3,21 +3,22 @@ import torch.nn as nn
 import lightning.pytorch as pl
 import torch.nn.functional as F
 import torchvision
+from torch.optim.lr_scheduler import OneCycleLR
 
 from models.blocks import DownBlock, MidBlock, UpBlock
-from models.discriminator import Discriminator, PatchGanDiscriminator
 
 
-class VQVAE(pl.LightningModule):
-    def __init__(self, in_channels: int) -> None:
-        super(VQVAE, self).__init__()
+class VQVAE2(pl.LightningModule):
+    def __init__(
+        self, in_channels: int, lr: float, latent_dim: int, codebook_size: int
+    ) -> None:
+        super(VQVAE2, self).__init__()
+
+        self.save_hyperparameters()
 
         # Hyperparameters Lightining
-        self.lr = 3e-4
+        self.lr = lr
         self.example_input_array = torch.rand(1, 5, 128, 64)
-        self.automatic_optimization = False
-
-        self.step_count = 0
 
         # Hyperparameters VQVAE
         self.down_channels = [32, 64, 128, 128]
@@ -25,16 +26,10 @@ class VQVAE(pl.LightningModule):
         self.up_channels = list(reversed(self.down_channels))
         self.in_channels = in_channels
         self.norm_groups = 32
-        self.latent_dim = 8
-        self.codebook_size = 256
+        self.latent_dim = latent_dim
+        self.codebook_size = codebook_size
         self.codebook_weight = 1.0
         self.commitment_weight = 0.2
-
-        # Discriminator
-        self.discriminator = PatchGanDiscriminator(
-            in_channels=self.in_channels)
-        self.discriminator_start_step = 500
-        self.disc_weight = 0.01
 
         ### Encoder ###
         self.encoder_conv_in = nn.Conv2d(
@@ -199,100 +194,25 @@ class VQVAE(pl.LightningModule):
         out = self.decode(z)
         return out, z, quant_losses
 
-    def calc_losses_discriminator(self, sample, prediction) -> dict:
-        disc_fake_pred = self.discriminator(prediction.detach())
-        disc_real_pred = self.discriminator(sample)
-
-        disc_fake_loss = F.mse_loss(
-            disc_fake_pred,
-            torch.zeros(disc_fake_pred.shape, device=disc_fake_pred.device),
-        )
-
-        disc_real_loss = F.mse_loss(
-            disc_real_pred,
-            torch.ones(disc_real_pred.shape, device=disc_real_pred.device),
-        )
-
-        disc_loss = self.disc_weight * (disc_fake_loss + disc_real_loss) / 2
-
-        return disc_loss
-
-    def calc_losses_generator(self, sample, prediction) -> dict:
-        # Reconstruction loss
-        # recon_loss = F.mse_loss(prediction, sample)
-        recon_loss = F.l1_loss(prediction, sample)
-
-        # Adversarial loss
-        disc_fake_pred = self.discriminator(prediction)
-        adversarial_loss = F.mse_loss(
-            disc_fake_pred,
-            torch.ones(disc_fake_pred.shape, device=disc_fake_pred.device),
-        )
-        adversarial_loss = self.disc_weight * adversarial_loss
-
-        loss_dict = {
-            "recon_loss": recon_loss,
-            "adversarial_loss": adversarial_loss,
-        }
-
-        return loss_dict
-
     def training_step(self, batch, batch_idx):
-        optimizer_g, optimizer_d = self.optimizers()
-
         sample = batch
         prediction, _, quant_losses = self.forward(sample)
 
-        # Calculate losses for generator
-        loss_generator_dict = self.calc_losses_generator(sample, prediction)
-        loss_generator_recon = loss_generator_dict["recon_loss"]
-        loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * \
-            self.codebook_weight
-        loss_generator_commitment = (
-            quant_losses["commitment_loss"] * self.commitment_weight
-        )
+        loss_recon = F.mse_loss(prediction, sample)
+        loss_codebook = quant_losses["codebook_loss"] * self.codebook_weight
+        loss_commitment = quant_losses["commitment_loss"] * \
+            self.commitment_weight
 
-        if self.step_count > self.discriminator_start_step:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_adversarial
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-        else:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-
-        # Train generator
-        optimizer_g.zero_grad()
-        self.manual_backward(loss_generator)
-        optimizer_g.step()
-
-        # Calculate losses for discriminator
-        loss_discriminator = self.calc_losses_discriminator(sample, prediction)
-
-        if self.step_count > self.discriminator_start_step:
-            # Train discriminator
-            optimizer_d.zero_grad()
-            self.manual_backward(loss_discriminator)
-            optimizer_d.step()
+        loss = loss_recon + loss_codebook + loss_commitment
 
         self.log_dict(
             {
-                "train_recon_loss": loss_generator_recon,
-                "train_adversarial_loss": loss_generator_adversarial,
-                "train_generator_loss": loss_generator,
-                "train_disc_loss": loss_discriminator,
-                "train_codebook_loss": loss_generator_codebook,
-                "train_commitment_loss": loss_generator_commitment,
+                "train_recon_loss": loss_recon,
+                "train_codebook_loss": loss_codebook,
+                "train_commitment_loss": loss_commitment,
+                "train_loss": loss,
             }
         )
-
-        self.step_count += 1
 
         # log an image of the reconstruction every 100 steps to tensorboard
         if batch_idx % 100 == 0:
@@ -316,92 +236,37 @@ class VQVAE(pl.LightningModule):
                 self.current_epoch,
             )
 
+        return loss
+
     def validation_step(self, batch, batch_idx):
         sample = batch
         prediction, _, quant_losses = self.forward(sample)
 
-        # Calculate losses for generator
-        loss_generator_dict = self.calc_losses_generator(sample, prediction)
-        loss_generator_recon = loss_generator_dict["recon_loss"]
-        loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * \
-            self.codebook_weight
-        loss_generator_commitment = (
-            quant_losses["commitment_loss"] * self.commitment_weight
-        )
+        loss_recon = F.mse_loss(prediction, sample)
+        loss_codebook = quant_losses["codebook_loss"] * self.codebook_weight
+        loss_commitment = quant_losses["commitment_loss"] * \
+            self.commitment_weight
 
-        if self.step_count > self.discriminator_start_step:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_adversarial
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-        else:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-
-        # Calculate losses for discriminator
-        loss_discriminator = self.calc_losses_discriminator(sample, prediction)
+        loss = loss_recon + loss_codebook + loss_commitment
 
         self.log_dict(
             {
-                "val_recon_loss": loss_generator_recon,
-                "val_adversarial_loss": loss_generator_adversarial,
-                "val_generator_loss": loss_generator,
-                "val_disc_loss": loss_discriminator,
-                "val_codebook_loss": loss_generator_codebook,
-                "val_commitment_loss": loss_generator_commitment,
+                "val_recon_loss": loss_recon,
+                "val_codebook_loss": loss_codebook,
+                "val_commitment_loss": loss_commitment,
+                "val_loss": loss,
             }
         )
 
-    def test_step(self, batch, batch_idx):
-        sample = batch
-        prediction, _, quant_losses = self.forward(sample)
-
-        # Calculate losses for generator
-        loss_generator_dict = self.calc_losses_generator(sample, prediction)
-        loss_generator_recon = loss_generator_dict["recon_loss"]
-        loss_generator_adversarial = loss_generator_dict["adversarial_loss"]
-        loss_generator_codebook = quant_losses["codebook_loss"] * \
-            self.codebook_weight
-        loss_generator_commitment = (
-            quant_losses["commitment_loss"] * self.commitment_weight
-        )
-
-        if self.step_count > self.discriminator_start_step:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_adversarial
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-        else:
-            loss_generator = (
-                loss_generator_recon
-                + loss_generator_codebook
-                + loss_generator_commitment
-            )
-
-        # Calculate losses for discriminator
-        loss_discriminator = self.calc_losses_discriminator(sample, prediction)
-
-        self.log_dict(
-            {
-                "test_recon_loss": loss_generator_recon,
-                "test_adversarial_loss": loss_generator_adversarial,
-                "test_generator_loss": loss_generator,
-                "test_disc_loss": loss_discriminator,
-                "test_codebook_loss": loss_generator_codebook,
-                "test_commitment_loss": loss_generator_commitment,
-            }
-        )
+        return loss
 
     def configure_optimizers(self):
-        optimizer_d = torch.optim.Adam(
-            self.discriminator.parameters(), lr=self.lr)
-        optimizer_g = torch.optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer_g, optimizer_d
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
+
+        lr_scheduler = OneCycleLR(
+            optimizer,
+            max_lr=self.lr,
+            epochs=self.trainer.max_epochs,
+            steps_per_epoch=2301,
+        )
+        return [optimizer], [{"scheduler": lr_scheduler, "interval": "step"}]
