@@ -1,0 +1,16 @@
+numpy
+matplotlib
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch
+torchvision
+torchaudio
+lightning
+ipykernel
+dask
+xarray
+xbatcher
+zarr
+gcsfs
+tensorboard
+timm
+einops
